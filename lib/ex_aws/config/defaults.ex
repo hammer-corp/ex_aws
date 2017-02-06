@@ -91,6 +91,8 @@ defmodule ExAws.Config.Defaults do
       region: "us-east-1",
       port: 80
     },
+    cloudfront: %{
+    }
   }
 
   @doc """

@@ -4,7 +4,7 @@ defmodule ExAws.CloudFront.Utils do
   @doc """
   Create a Signed URL Using a Policy and Query Builder.
   """
-  def get_signed_url(policy, query_builder) do
+  def get_signed_url(policy, %{json_codec: json_codec}, query_builder) do
     with {:ok, statement} <- Policy.to_statement(policy) do
       policy.url
       |> URI.parse
@@ -12,23 +12,28 @@ defmodule ExAws.CloudFront.Utils do
         query
         |> to_string
         |> URI.query_decoder
-        |> Stream.concat(statement |> Poison.encode! |> query_builder.())
+        |> Stream.concat(statement |> json_codec.encode! |> query_builder.())
         |> URI.encode_query
       end)
       |> to_string
     end
   end
 
-  def get_signed_cookies(policy, cookies_builder) do
+  def get_signed_cookies(policy, %{json_codec: json_codec}, cookies_builder) do
     with {:ok, statement} <- Policy.to_statement(policy) do
-      statement |> Poison.encode! |> cookies_builder.()
+      statement |> json_codec.encode! |> cookies_builder.()
     end
   end
 
   def create_signature(payload, private_key) when is_binary(private_key) do
-    create_signature payload, private_key |> decode_rsa_key
+    create_signature(payload, decode_rsa_key(private_key))
   end
-  def create_signature(payload, private_key), do: :public_key.sign payload, :sha, private_key
+  def create_signature(payload, private_key) when is_function(private_key) do
+    create_signature(payload, private_key.())
+  end
+  def create_signature(payload, private_key) do
+    :public_key.sign(payload, :sha, private_key)
+  end
 
   def aws_encode64(value), do: value |> Base.encode64 |> urlify
   def aws_decode64(value), do: value |> deurlify |> Base.decode64!

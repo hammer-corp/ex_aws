@@ -20,7 +20,7 @@ defmodule ExAws.CloudFront.PolicyTest do
   } do
     expire_time = 2147483646
     policy = CannedPolicy.new("http://d7311xa8wes2l.cloudfront.net/index.html", expire_time)
-    uri = policy |> Policy.get_signed_url(keypair_id, private_key) |> URI.parse
+    uri = policy |> Policy.get_signed_url(config(keypair_id, private_key)) |> URI.parse
     query = uri |> Map.get(:query) |> URI.query_decoder |> Map.new
 
     assert {:ok, statement} = Policy.to_statement(policy)
@@ -44,7 +44,7 @@ defmodule ExAws.CloudFront.PolicyTest do
   } do
     expire_time = 2147483646
     policy = CannedPolicy.new("http://d7311xa8wes2l.cloudfront.net/index.html", expire_time)
-    cookies = Policy.get_signed_cookies(policy, keypair_id, private_key)
+    cookies = Policy.get_signed_cookies(policy, config(keypair_id, private_key))
 
     assert {:ok, statement} = Policy.to_statement(policy)
     assert cookies["CloudFront-Expires"] == "2147483646"
@@ -72,7 +72,7 @@ defmodule ExAws.CloudFront.PolicyTest do
       |> CustomPolicy.new(date_less_than)
       |> CustomPolicy.put_date_greater_than(date_greater_than)
       |> CustomPolicy.put_ip_address(ip_address)
-    uri = policy |> Policy.get_signed_url(keypair_id, private_key) |> URI.parse
+    uri = policy |> Policy.get_signed_url(config(keypair_id, private_key)) |> URI.parse
     query = uri |> Map.get(:query) |> URI.query_decoder |> Map.new
 
     assert {:ok, statement} = Policy.to_statement(policy)
@@ -102,7 +102,7 @@ defmodule ExAws.CloudFront.PolicyTest do
       |> CustomPolicy.new(date_less_than)
       |> CustomPolicy.put_date_greater_than(date_greater_than)
       |> CustomPolicy.put_ip_address(ip_address)
-    cookies = Policy.get_signed_cookies(policy, keypair_id, private_key)
+    cookies = Policy.get_signed_cookies(policy, config(keypair_id, private_key))
 
     assert {:ok, statement} = Policy.to_statement(policy)
     assert Utils.aws_decode64(cookies["CloudFront-Policy"]) == Poison.encode!(statement)
@@ -115,5 +115,9 @@ defmodule ExAws.CloudFront.PolicyTest do
     payload = Poison.encode!(statement)
 
     assert :public_key.verify(payload, :sha, signature, public_key)
+  end
+
+  defp config(keypair_id, private_key) do
+    ExAws.Config.new(:cloudfront, [keypair_id: keypair_id, private_key: private_key])
   end
 end

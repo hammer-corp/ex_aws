@@ -43,8 +43,8 @@ defimpl ExAws.CloudFront.Policy, for: ExAws.CloudFront.CustomPolicy do
   @doc """
   Create a Signed URL Using a Custom Policy.
   """
-  def get_signed_url(custom_policy, keypair_id, private_key) do
-    get_signed_url(custom_policy, fn payload ->
+  def get_signed_url(custom_policy, %{keypair_id: keypair_id, private_key: private_key} = config) do
+    get_signed_url(custom_policy, config, fn payload ->
       [
         {"Policy", payload |> aws_encode64},
         {"Signature", payload |> create_signature(private_key) |> aws_encode64},
@@ -56,8 +56,8 @@ defimpl ExAws.CloudFront.Policy, for: ExAws.CloudFront.CustomPolicy do
   @doc """
   Creating a Signature for a Signed Cookie That Uses a Custom Policy.
   """
-  def get_signed_cookies(custom_policy, keypair_id, private_key) do
-    get_signed_cookies(custom_policy, fn payload ->
+  def get_signed_cookies(custom_policy, %{keypair_id: keypair_id, private_key: private_key} = config) do
+    get_signed_cookies(custom_policy, config, fn payload ->
       %{
         "CloudFront-Policy" => payload |> aws_encode64,
         "CloudFront-Signature" => payload |> create_signature(private_key) |> aws_encode64,
