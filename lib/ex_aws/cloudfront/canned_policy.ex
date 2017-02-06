@@ -6,12 +6,13 @@ defmodule ExAws.CloudFront.CannedPolicy do
   @doc """
   Create a Canned Policy.
   """
-  def create(url), do: create(url, ExAws.Utils.now_in_seconds + 1800)
-  def create(url, %DateTime{} = expire_time), do: create(url, DateTime.to_unix(expire_time))
-  def create(url, expire_time) when is_binary(url) and is_integer(expire_time) do
+  def new(url), do: new(url, ExAws.Utils.now_in_seconds + 1800)
+  def new(url, %DateTime{} = expire_time), do: new(url, DateTime.to_unix(expire_time))
+  def new(url, expire_time) when is_integer(expire_time), do: new(url, expire_time: expire_time)
+  def new(url, opts) when is_binary(url) and is_list(opts) do
     %__MODULE__{
       url: url,
-      expire_time: expire_time
+      expire_time: Keyword.get(opts, :expire_time)
     }
   end
 end
@@ -49,24 +50,21 @@ defimpl ExAws.CloudFront.Policy, for: ExAws.CloudFront.CannedPolicy do
   Create a Policy Statement for a Signed URL That Uses a Canned Policy.
   """
   def to_statement(%{url: url, expire_time: expire_time}) do
-    unless expire_time < 2147483647 do
-      raise ArgumentError, message:
-        "`expire_time` must be less than 2147483647 (January 19, 2038 03:14:08 GMT)"
-    end
-
-    unless expire_time > ExAws.Utils.now_in_seconds do
-      raise ArgumentError, message: "`expire_time` must be after the current time"
-    end
-
-    %{
-      "Statement" => [%{
-        "Resource" => url,
-        "Condition" => %{
-          "DateLessThan" => %{
-            "AWS:EpochTime" => expire_time
+    cond do
+      expire_time >= 2147483647 ->
+        {:error, "`expire_time` must be less than 2147483647 (January 19, 2038 03:14:08 GMT)"}
+      expire_time <= ExAws.Utils.now_in_seconds ->
+        {:error, "`expire_time` must be after the current time"}
+      :else -> {:ok, %{
+        "Statement" => [%{
+          "Resource" => url,
+          "Condition" => %{
+            "DateLessThan" => %{
+              "AWS:EpochTime" => expire_time
+            }
           }
-        }
-      }]
-    }
+        }]
+      }}
+    end
   end
 end

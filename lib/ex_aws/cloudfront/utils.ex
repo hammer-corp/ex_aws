@@ -5,20 +5,24 @@ defmodule ExAws.CloudFront.Utils do
   Create a Signed URL Using a Policy and Query Builder.
   """
   def get_signed_url(policy, query_builder) do
-    policy.url
-    |> URI.parse
-    |> Map.update!(:query, fn query ->
-      query
+    with {:ok, statement} <- Policy.to_statement(policy) do
+      policy.url
+      |> URI.parse
+      |> Map.update!(:query, fn query ->
+        query
+        |> to_string
+        |> URI.query_decoder
+        |> Stream.concat(statement |> Poison.encode! |> query_builder.())
+        |> URI.encode_query
+      end)
       |> to_string
-      |> URI.query_decoder
-      |> Stream.concat(policy |> Policy.to_statement |> Poison.encode! |> query_builder.())
-      |> URI.encode_query
-    end)
-    |> to_string
+    end
   end
 
   def get_signed_cookies(policy, cookies_builder) do
-    policy |> Policy.to_statement |> Poison.encode! |> cookies_builder.()
+    with {:ok, statement} <- Policy.to_statement(policy) do
+      statement |> Poison.encode! |> cookies_builder.()
+    end
   end
 
   def create_signature(payload, private_key) when is_binary(private_key) do

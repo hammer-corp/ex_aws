@@ -19,10 +19,11 @@ defmodule ExAws.CloudFront.PolicyTest do
     public_key: public_key
   } do
     expire_time = 2147483646
-    policy = "http://d7311xa8wes2l.cloudfront.net/index.html" |> CannedPolicy.create(expire_time)
+    policy = CannedPolicy.new("http://d7311xa8wes2l.cloudfront.net/index.html", expire_time)
     uri = policy |> Policy.get_signed_url(keypair_id, private_key) |> URI.parse
     query = uri |> Map.get(:query) |> URI.query_decoder |> Map.new
 
+    assert {:ok, statement} = Policy.to_statement(policy)
     assert "http://d7311xa8wes2l.cloudfront.net/index.html" == %{uri | query: nil} |> to_string
     assert query["Expires"] == "2147483646"
     assert query["Signature"] == "DZ9wlO6wsowBSKWDcX-bWwO0XpoLWz0e-3E3S5WS-o0Y0TFWwB4KDF1zaU2LJLFEv2J~tlOSjAXe0TNSFwz11ogMnb0fR9J40mgoNXn98fvJLZfUpX56Q5VEoWK7fq22GkqRbKvcm6V40RYbem2U4KN1iha5vIvwKNTg4ZgcSg-fnv3Umhie78TZ0ef4bVoUG62RdWy7N22R1SuC~R5aWpb9JSq0T8hcHryPUhypXFulgpTXVOXseSQT19AkPSAUI-0McJU0OkB8LfYslGEiwo~LQykLuzT2yQn9N9SLq0hQTm12xqhUNBJVzAZaLf8WmiFKq5UD0ZVdFwKmQwDTEA__"
@@ -30,8 +31,8 @@ defmodule ExAws.CloudFront.PolicyTest do
 
     refute query["Policy"]
 
-    signature = query["Signature"] |> Utils.aws_decode64
-    payload = policy |> Policy.to_statement |> Poison.encode!
+    signature = Utils.aws_decode64(query["Signature"])
+    payload = Poison.encode!(statement)
 
     assert :public_key.verify(payload, :sha, signature, public_key)
   end
@@ -42,17 +43,18 @@ defmodule ExAws.CloudFront.PolicyTest do
     public_key: public_key
   } do
     expire_time = 2147483646
-    policy = "http://d7311xa8wes2l.cloudfront.net/index.html" |> CannedPolicy.create(expire_time)
-    cookies = policy |> Policy.get_signed_cookies(keypair_id, private_key)
+    policy = CannedPolicy.new("http://d7311xa8wes2l.cloudfront.net/index.html", expire_time)
+    cookies = Policy.get_signed_cookies(policy, keypair_id, private_key)
 
+    assert {:ok, statement} = Policy.to_statement(policy)
     assert cookies["CloudFront-Expires"] == "2147483646"
     assert cookies["CloudFront-Signature"] == "DZ9wlO6wsowBSKWDcX-bWwO0XpoLWz0e-3E3S5WS-o0Y0TFWwB4KDF1zaU2LJLFEv2J~tlOSjAXe0TNSFwz11ogMnb0fR9J40mgoNXn98fvJLZfUpX56Q5VEoWK7fq22GkqRbKvcm6V40RYbem2U4KN1iha5vIvwKNTg4ZgcSg-fnv3Umhie78TZ0ef4bVoUG62RdWy7N22R1SuC~R5aWpb9JSq0T8hcHryPUhypXFulgpTXVOXseSQT19AkPSAUI-0McJU0OkB8LfYslGEiwo~LQykLuzT2yQn9N9SLq0hQTm12xqhUNBJVzAZaLf8WmiFKq5UD0ZVdFwKmQwDTEA__"
     assert cookies["CloudFront-Key-Pair-Id"] == "APKAIL7VCI7EL2WS2MSA"
 
     refute cookies["CloudFront-Policy"]
 
-    signature = cookies["CloudFront-Signature"] |> Utils.aws_decode64
-    payload = policy |> Policy.to_statement |> Poison.encode!
+    signature = Utils.aws_decode64(cookies["CloudFront-Signature"])
+    payload = Poison.encode!(statement)
 
     assert :public_key.verify(payload, :sha, signature, public_key)
   end
@@ -67,21 +69,22 @@ defmodule ExAws.CloudFront.PolicyTest do
     ip_address = "1.2.3.0/24"
     policy =
       "http://d7311xa8wes2l.cloudfront.net/index.html"
-      |> CustomPolicy.create(date_less_than)
+      |> CustomPolicy.new(date_less_than)
       |> CustomPolicy.put_date_greater_than(date_greater_than)
       |> CustomPolicy.put_ip_address(ip_address)
     uri = policy |> Policy.get_signed_url(keypair_id, private_key) |> URI.parse
     query = uri |> Map.get(:query) |> URI.query_decoder |> Map.new
 
+    assert {:ok, statement} = Policy.to_statement(policy)
     assert "http://d7311xa8wes2l.cloudfront.net/index.html" == %{uri | query: nil} |> to_string
-    assert query["Policy"] |> Utils.aws_decode64 == policy |> Policy.to_statement |> Poison.encode!
+    assert Utils.aws_decode64(query["Policy"]) == Poison.encode!(statement)
     assert query["Signature"] == "VIoXLS-0~vGxqActcwzAL9RktWLZzl0byk4dzdN9iPO1C2zUm1ZW9jYFWMlvQC~~-7KcjGbi35Bmv5IRQKXfmyUs8ZZKBVR4T3oVj-xijR6OWss8TmQw6MCKvYkZIqJwvhQd6ZGCaK25kPN68eSlpu4ZJypyi1zXt2kcrxdunbqIwGrsrsZK2vQVDQyv5-oqoT9GE~r4gKRngPvDp1a5fT5GJ9hWQSk1RlatfztORjtF457PoOjXlGblJ38WsZ4NMssci~yb3PH69zmY85pT5qW4EZYZIGBECOA56ktBCxUnmUatKEir~qZkvxw9eWxy5lxZC-dIOTYztN19~M~YKA__"
     assert query["Key-Pair-Id"] == "APKAIL7VCI7EL2WS2MSA"
 
     refute query["Expires"]
 
-    signature = query["Signature"] |> Utils.aws_decode64
-    payload = policy |> Policy.to_statement |> Poison.encode!
+    signature = Utils.aws_decode64(query["Signature"])
+    payload = Poison.encode!(statement)
 
     assert :public_key.verify(payload, :sha, signature, public_key)
   end
@@ -96,19 +99,20 @@ defmodule ExAws.CloudFront.PolicyTest do
     ip_address = "1.2.3.0/24"
     policy =
       "http://d7311xa8wes2l.cloudfront.net/index.html"
-      |> CustomPolicy.create(date_less_than)
+      |> CustomPolicy.new(date_less_than)
       |> CustomPolicy.put_date_greater_than(date_greater_than)
       |> CustomPolicy.put_ip_address(ip_address)
-    cookies = policy |> Policy.get_signed_cookies(keypair_id, private_key)
+    cookies = Policy.get_signed_cookies(policy, keypair_id, private_key)
 
-    assert cookies["CloudFront-Policy"] |> Utils.aws_decode64 == policy |> Policy.to_statement |> Poison.encode!
+    assert {:ok, statement} = Policy.to_statement(policy)
+    assert Utils.aws_decode64(cookies["CloudFront-Policy"]) == Poison.encode!(statement)
     assert cookies["CloudFront-Signature"] == "VIoXLS-0~vGxqActcwzAL9RktWLZzl0byk4dzdN9iPO1C2zUm1ZW9jYFWMlvQC~~-7KcjGbi35Bmv5IRQKXfmyUs8ZZKBVR4T3oVj-xijR6OWss8TmQw6MCKvYkZIqJwvhQd6ZGCaK25kPN68eSlpu4ZJypyi1zXt2kcrxdunbqIwGrsrsZK2vQVDQyv5-oqoT9GE~r4gKRngPvDp1a5fT5GJ9hWQSk1RlatfztORjtF457PoOjXlGblJ38WsZ4NMssci~yb3PH69zmY85pT5qW4EZYZIGBECOA56ktBCxUnmUatKEir~qZkvxw9eWxy5lxZC-dIOTYztN19~M~YKA__"
     assert cookies["CloudFront-Key-Pair-Id"] == "APKAIL7VCI7EL2WS2MSA"
 
     refute cookies["CloudFront-Expires"]
 
-    signature = cookies["CloudFront-Signature"] |> Utils.aws_decode64
-    payload = policy |> Policy.to_statement |> Poison.encode!
+    signature = Utils.aws_decode64(cookies["CloudFront-Signature"])
+    payload = Poison.encode!(statement)
 
     assert :public_key.verify(payload, :sha, signature, public_key)
   end

@@ -6,12 +6,15 @@ defmodule ExAws.CloudFront.CustomPolicy do
   @doc """
   Create a Custom Policy.
   """
-  def create(url), do: create(url, ExAws.Utils.now_in_seconds + 1800)
-  def create(url, %DateTime{} = date_less_than), do: create(url, DateTime.to_unix(date_less_than))
-  def create(url, date_less_than) when is_binary(url) and is_integer(date_less_than) do
+  def new(url), do: new(url, ExAws.Utils.now_in_seconds + 1800)
+  def new(url, %DateTime{} = date_less_than), do: new(url, DateTime.to_unix(date_less_than))
+  def new(url, date_less_than) when is_integer(date_less_than), do: new(url, date_less_than: date_less_than)
+  def new(url, opts) when is_binary(url) and is_list(opts) do
     %__MODULE__{
       url: url,
-      date_less_than: date_less_than
+      date_less_than: Keyword.get(opts, :date_less_than),
+      date_greater_than: Keyword.get(opts, :date_greater_than),
+      ip_address: Keyword.get(opts, :ip_address),
     }
   end
 
@@ -72,52 +75,43 @@ defimpl ExAws.CloudFront.Policy, for: ExAws.CloudFront.CustomPolicy do
     date_greater_than: date_greater_than,
     ip_address: ip_address
   }) do
-    unless date_less_than < 2147483647 do
-      raise ArgumentError, message:
-        "`date_less_than` must be less than 2147483647 (January 19, 2038 03:14:08 GMT)"
+    cond do
+      date_less_than >= 2147483647 ->
+        {:error, "`date_less_than` must be less than 2147483647 (January 19, 2038 03:14:08 GMT)"}
+      date_less_than <= ExAws.Utils.now_in_seconds ->
+        {:error, "`date_less_than` must be after the current time"}
+      not is_nil(date_greater_than) and date_greater_than >= date_less_than ->
+        {:error, "`date_greater_than` must be before the `date_less_than`"}
+      not is_nil(date_greater_than) and date_greater_than <= ExAws.Utils.now_in_seconds ->
+        {:error, "`date_greater_than` must be after the current time"}
+      :else -> {:ok, %{
+        "Statement" => [%{
+          "Resource" => url,
+          "Condition" =>
+            case {date_greater_than, ip_address} do
+              {nil, nil} -> %{
+                "DateLessThan" => aws_epoch_time(date_less_than)
+              }
+
+              {_, nil} -> %{
+                "DateLessThan" => aws_epoch_time(date_less_than),
+                "DateGreaterThan" => aws_epoch_time(date_greater_than)
+              }
+
+              {nil, _} -> %{
+                "DateLessThan" => aws_epoch_time(date_less_than),
+                "IpAddress" => aws_source_ip(ip_address)
+              }
+
+              {_, _} -> %{
+                "DateLessThan" => aws_epoch_time(date_less_than),
+                "DateGreaterThan" => aws_epoch_time(date_greater_than),
+                "IpAddress" => aws_source_ip(ip_address)
+              }
+            end
+        }]
+      }}
     end
-
-    unless date_less_than > ExAws.Utils.now_in_seconds do
-      raise ArgumentError, message: "`date_less_than` must be after the current time"
-    end
-
-    unless is_nil(date_greater_than) do
-      unless date_greater_than < date_less_than do
-        raise ArgumentError, message: "`date_greater_than` must be before the `date_less_than`"
-      end
-
-      unless date_greater_than > ExAws.Utils.now_in_seconds do
-        raise ArgumentError, message: "`date_greater_than` must be after the current time"
-      end
-    end
-
-    %{
-      "Statement" => [%{
-        "Resource" => url,
-        "Condition" =>
-          case {date_greater_than, ip_address} do
-            {nil, nil} -> %{
-              "DateLessThan" => aws_epoch_time(date_less_than)
-            }
-
-            {_, nil} -> %{
-              "DateLessThan" => aws_epoch_time(date_less_than),
-              "DateGreaterThan" => aws_epoch_time(date_greater_than)
-            }
-
-            {nil, _} -> %{
-              "DateLessThan" => aws_epoch_time(date_less_than),
-              "IpAddress" => aws_source_ip(ip_address)
-            }
-
-            {_, _} -> %{
-              "DateLessThan" => aws_epoch_time(date_less_than),
-              "DateGreaterThan" => aws_epoch_time(date_greater_than),
-              "IpAddress" => aws_source_ip(ip_address)
-            }
-          end
-      }]
-    }
   end
 
   defp aws_epoch_time(value), do: %{"AWS:EpochTime" => value}
