@@ -117,7 +117,7 @@ defmodule ExAws.DynamoStreams do
       data: data,
       headers: [
         {"x-amz-target", "#{@namespace}.#{operation}"},
-        {"content-type", "application/x-amz-json-1.1"}
+        {"content-type", "application/x-amz-json-1.0"}
       ]
     } |> Map.merge(opts))
   end

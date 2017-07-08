@@ -1,15 +1,8 @@
 defmodule ExAws.SNS.ParserTest do
   use ExUnit.Case, async: true
+  import Support.ParserHelpers
 
   alias ExAws.SNS.Parsers
-
-  def to_success(doc) do
-    {:ok, %{body: doc}}
-  end
-
-  def to_error(doc) do
-    {:error, {:http_error, 403, %{body: doc}}}
-  end
 
   test "#parsing a list_topics response" do
     rsp = """
@@ -641,26 +634,40 @@ defmodule ExAws.SNS.ParserTest do
     assert parsed_doc[:request_id] == "c1d2b191-353c-5a5f-8969-fbdd3900afa8"
   end
 
-  test "it should handle parsing an error" do
+  test "#parsing a list_phone_numbers_opted_out response" do
     rsp = """
-    <?xml version=\"1.0\"?>
-    <ErrorResponse xmlns=\"http://queue.amazonaws.com/doc/2012-11-05/\">
-      <Error>
-        <Type>Sender</Type>
-        <Code>ExpiredToken</Code>
-        <Message>The security token included in the request is expired</Message>
-        <Detail/>
-      </Error>
-      <RequestId>f7ac5905-2fb6-5529-a86d-09628dae67f4</RequestId>
-    </ErrorResponse>
+      <ListPhoneNumbersOptedOutResponse xmlns="http://sns.amazonaws.com/doc/2010-03-31/">
+        <ListPhoneNumbersOptedOutResult>
+          <nextToken>AAHewfYBWTBhfb4//E2ANouP</nextToken>
+            <phoneNumbers>
+              <member>+15005550006</member>
+            </phoneNumbers>
+          </ListPhoneNumbersOptedOutResult>
+        <ResponseMetadata>
+          <RequestId>db6d6256-6b98-5656-8798-33d0de3d3b47</RequestId>
+        </ResponseMetadata>
+      </ListPhoneNumbersOptedOutResponse>
     """
-    |> to_error
+    |> to_success
 
-    {:error, {:http_error, 403, err}} = Parsers.parse(rsp, :set_endpoint_attributes)
+    {:ok, %{body: parsed_doc}} = Parsers.parse(rsp, :list_phone_numbers_opted_out)
+    assert parsed_doc[:request_id] == "db6d6256-6b98-5656-8798-33d0de3d3b47"
+    assert parsed_doc[:phone_numbers] == ["+15005550006"]
+    assert parsed_doc[:next_token] == "AAHewfYBWTBhfb4//E2ANouP"
+  end
 
-    assert "f7ac5905-2fb6-5529-a86d-09628dae67f4" == err[:request_id]
-    assert "Sender" == err[:type]
-    assert "ExpiredToken" == err[:code]
-    assert "The security token included in the request is expired" == err[:message]
+  test "#parsing a opt_in_phone_number response" do
+    rsp = """
+      <OptInPhoneNumberResponse xmlns="http://sns.amazonaws.com/doc/2010-03-31/">
+        <OptInPhoneNumberResult/>
+        <ResponseMetadata>
+          <RequestId>5839a693-c333-5df8-b06f-f71576ff9bc1</RequestId>
+        </ResponseMetadata>
+      </OptInPhoneNumberResponse>
+    """
+    |> to_success
+
+    {:ok, %{body: parsed_doc}} = Parsers.parse(rsp, :opt_in_phone_number)
+    assert parsed_doc[:request_id] == "5839a693-c333-5df8-b06f-f71576ff9bc1"
   end
 end

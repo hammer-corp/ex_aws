@@ -3,10 +3,9 @@ defmodule ExAws.Lambda do
   Operations on ExAws Lambda
   """
 
-  import ExAws.Utils, only: [camelize_keys: 1, upcase: 1]
+  import ExAws.Utils, only: [camelize_key: 1, camelize_keys: 1, upcase: 1]
   require Logger
 
-  @namespace "Lambda"
   @actions %{
     add_permission:                :post,
     create_event_source_mapping:   :post,
@@ -168,7 +167,7 @@ defmodule ExAws.Lambda do
       case Map.fetch(opts, opt) do
         :error       -> headers
         {:ok, nil}   -> headers
-        {:ok, value} -> [{header, value} | headers]
+        {:ok, value} -> [{header, value |> camelize_key} | headers]
       end
     end)
 

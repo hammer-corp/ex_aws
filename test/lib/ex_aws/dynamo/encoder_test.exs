@@ -31,6 +31,17 @@ defmodule ExAws.Dynamo.EncoderTest do
     assert ["foo", 1] |> Encoder.encode == %{"L" => [%{"S" => "foo"}, %{"N" => "1"}]}
   end
 
+  test "encoder handles mapsets properly" do
+    assert MapSet.new([1, 2, 3]) |> Encoder.encode == %{"NS" => ["1", "2", "3"]}
+    assert MapSet.new(["A", "B", "C"]) |> Encoder.encode == %{"SS" => ["A", "B", "C"]}
+    assert_raise RuntimeError, "Cannot determine a proper data type for an empty MapSet", fn ->
+      MapSet.new([]) |> Encoder.encode
+    end
+    assert_raise RuntimeError, "All elements in a MapSet must be only numbers or only strings", fn ->
+      MapSet.new([1, "A"]) |> Encoder.encode
+    end
+  end
+
   test "encoder is idempotent" do
     value = %{foo: 1, bar: %{baz: 2, zounds: "asdf"}}
     assert value |> Encoder.encode == value |> Encoder.encode |> Encoder.encode
@@ -40,5 +51,10 @@ defmodule ExAws.Dynamo.EncoderTest do
     nested_structs = %Test.Nested{items: [%Test.Nested{items: ["asdf"], secret: "foo"}], secret: "bar"} |> Encoder.encode_root
     expected = %{"items" => %{"L" => [%{"M" => %{"items" => %{"L" => [%{"S" => "asdf"}]}}}]}}
     assert nested_structs == expected
+  end
+
+  test "encoder nil works" do
+    assert Encoder.encode(nil) == %{"NULL" => "true"}
+    assert Encoder.encode(%{"key" => nil}) == %{"M" => %{"key" => %{"NULL" => "true"}}}
   end
 end

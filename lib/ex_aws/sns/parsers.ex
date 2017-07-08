@@ -1,6 +1,6 @@
 if Code.ensure_loaded?(SweetXml) do
   defmodule ExAws.SNS.Parsers do
-    import SweetXml, only: [sigil_x: 2]
+    use ExAws.Operation.Query.Parser
 
     def parse({:ok, %{body: xml}=resp}, :list_topics) do
       parsed_body = xml
@@ -232,16 +232,21 @@ if Code.ensure_loaded?(SweetXml) do
       {:ok, Map.put(resp, :body, parsed_body)}
     end
 
-    def parse({:error, {type, http_status_code, %{body: xml}}}, _) do
+    def parse({:ok, %{body: xml}=resp}, :list_phone_numbers_opted_out) do
       parsed_body = xml
-      |> SweetXml.xpath(~x"//ErrorResponse",
-                        request_id: ~x"./RequestId/text()"s,
-                        type: ~x"./Error/Type/text()"s,
-                        code: ~x"./Error/Code/text()"s,
-                        message: ~x"./Error/Message/text()"s,
-                        detail: ~x"./Error/Detail/text()"s)
+      |> SweetXml.xpath(~x"//ListPhoneNumbersOptedOutResponse",
+                        phone_numbers: ~x"./ListPhoneNumbersOptedOutResult/phoneNumbers/member/text()"sl,
+                        next_token: ~x"./ListPhoneNumbersOptedOutResult/nextToken/text()"s,
+                        request_id: request_id_xpath())
+      {:ok, Map.put(resp, :body, parsed_body)}
+    end
 
-      {:error, {type, http_status_code, parsed_body}}
+    def parse({:ok, %{body: xml}=resp}, :opt_in_phone_number) do
+      parsed_body = xml
+      |> SweetXml.xpath(~x"//OptInPhoneNumberResponse",
+                        request_id: request_id_xpath())
+
+      {:ok, Map.put(resp, :body, parsed_body)}
     end
 
     def parse(val, _), do: val

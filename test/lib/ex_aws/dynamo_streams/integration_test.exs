@@ -3,12 +3,14 @@ defmodule ExAws.DynamoStreamsIntegrationTest do
   use ExUnit.Case, async: true
   require Logger
 
-  ## These tests run against DynamoDb Local
+  ## These tests run against DynamoDb Local unless otherwise specified
   #
   # http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Tools.DynamoDBLocal.html
   # In this way they can safely delete data and tables without risking actual data on
   # Dynamo
   #
+
+  @moduletag :dynamo
 
   setup_all do
     Dynamo.delete_table("StreamUser") |> ExAws.request
@@ -24,6 +26,14 @@ defmodule ExAws.DynamoStreamsIntegrationTest do
 
   test "#list streams" do
     assert {:ok, _} = DynamoStreams.list_streams |> ExAws.request
+  end
+
+  test "#list streams (aws)" do
+    assert {:ok, %{"Streams" => _}} = DynamoStreams.list_streams |> ExAws.request(
+      host: {"$region", "streams.dynamodb.$region.amazonaws.com"},
+      region: "us-east-1",
+      port: 80
+    )
   end
 
   test "#describe stream", context do
@@ -45,6 +55,5 @@ defmodule ExAws.DynamoStreamsIntegrationTest do
 
     assert item == user
   end
-
 
 end
